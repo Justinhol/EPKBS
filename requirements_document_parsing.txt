@@ -1,0 +1,57 @@
+# 文档解析模块新增依赖
+
+# PDF处理
+PyMuPDF>=1.23.0  # PDF文本和图像提取
+
+# OCR功能
+paddleocr>=2.7.0  # 图像和扫描PDF的OCR识别
+paddlepaddle>=2.5.0  # PaddleOCR的后端
+
+# Office文档处理
+python-docx>=0.8.11  # Word文档解析
+python-pptx>=0.6.21  # PowerPoint文档解析
+openpyxl>=3.1.0  # Excel文档解析（新版）
+xlrd>=2.0.1  # Excel文档解析（旧版）
+
+# 图像处理
+Pillow>=10.0.0  # 图像文件处理
+opencv-python>=4.8.0  # 图像处理和表格检测
+
+# 网页和标记语言
+beautifulsoup4>=4.12.0  # HTML解析
+lxml>=4.9.0  # XML解析
+markdown>=3.5.0  # Markdown解析
+
+# 电子书处理
+ebooklib>=0.18  # EPUB文件解析
+
+# 邮件处理
+email-validator>=2.0.0  # 邮件格式验证
+
+# 文件类型检测
+python-magic>=0.4.27  # 文件MIME类型检测
+python-magic-bin>=0.4.14  # Windows下的magic库
+
+# 数据处理
+pandas>=2.0.0  # 表格数据处理
+numpy>=1.24.0  # 数值计算
+
+# 文本处理
+langchain>=0.0.350  # 文档分割和处理
+langchain-community>=0.0.10  # 社区文档加载器
+
+# 正则表达式增强
+regex>=2023.10.0  # 高级正则表达式
+
+# 异步处理
+aiofiles>=23.2.0  # 异步文件操作
+
+# 测试依赖
+pytest>=7.4.0  # 测试框架
+pytest-asyncio>=0.21.0  # 异步测试支持
+
+# 可选依赖（用于特定功能）
+# unstructured>=0.10.0  # 高级文档解析（可选）
+# detectron2  # 高级表格和布局检测（可选，需要特殊安装）
+# transformers>=4.35.0  # 多模态模型支持（可选）
+# torch>=2.0.0  # 深度学习模型支持（可选）
