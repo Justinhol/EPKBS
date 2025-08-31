@@ -4,6 +4,11 @@ langchain-community>=0.0.20
 langchain-experimental>=0.0.50
 langchain-openai>=0.0.8
 
+# MCP框架
+fastmcp>=0.1.0
+mcp>=1.0.0
+pydantic-core>=2.14.0
+
 # LLM和嵌入模型
 transformers>=4.36.0
 torch>=2.1.0
@@ -35,6 +40,22 @@ pypdf>=3.17.0
 python-docx>=1.1.0
 python-pptx>=0.6.23
 openpyxl>=3.1.2
+
+# 高级文档解析
+PyMuPDF>=1.23.0
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0
+xlrd>=2.0.1
+Pillow>=10.0.0
+opencv-python>=4.8.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+markdown>=3.5.0
+ebooklib>=0.18
+email-validator>=2.0.0
+python-magic>=0.4.27
+regex>=2023.10.0
+aiofiles>=23.2.0
 
 # 数据处理
 pandas>=2.1.0

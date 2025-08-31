@@ -166,7 +166,7 @@ cython_debug/
 .vscode/
 
 # 项目特定文件
-data/
+/data/  # 只忽略根目录下的data文件夹，不忽略src/data/
 logs/
 *.db
 *.sqlite
