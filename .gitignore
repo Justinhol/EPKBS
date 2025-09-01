@@ -233,3 +233,14 @@ Desktop.ini
 
 # Linux
 *~
+
+# LangGraph特定文件
+workflow_*.mermaid
+workflow_*.png
+workflow_*.svg
+langgraph_state_*.json
+
+# 奇怪的文件（避免再次出现）
+=*
+>=*
+<=*

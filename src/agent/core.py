@@ -10,9 +10,11 @@ from src.agent.llm import QwenLLMManager, LLMFactory
 from src.agent.tools import ToolManager, create_default_tool_manager
 from src.agent.react_agent import ReActAgent
 from src.agent.mcp_agent import MCPAgent
+from src.agent.langgraph_agent import LangGraphAgent
+from src.agent.workflows import WorkflowManager
 from src.rag.core import RAGCore
-from src.mcp.server_manager import MCPServerManager
-from src.mcp.clients.mcp_client import MCPClientManager
+from src.epkbs_mcp.server_manager import MCPServerManager
+from src.epkbs_mcp.clients.mcp_client import MCPClientManager
 from src.utils.logger import get_logger
 from config.settings import settings
 
@@ -45,6 +47,10 @@ class AgentCore:
         self.mcp_server_manager = None
         self.mcp_client_manager = None
         self.mcp_agent = None
+
+        # LangGraph组件
+        self.langgraph_agent = None
+        self.workflow_manager = None
 
         # 状态
         self.is_initialized = False
@@ -101,7 +107,16 @@ class AgentCore:
                     self.llm_manager, self.mcp_client_manager)
                 await self.mcp_agent.initialize()
 
-                logger.info("MCP组件初始化完成")
+                # 初始化LangGraph Agent
+                self.langgraph_agent = LangGraphAgent(
+                    self.llm_manager, self.mcp_client_manager)
+                await self.langgraph_agent.initialize()
+
+                # 初始化工作流管理器
+                self.workflow_manager = WorkflowManager(
+                    self.llm_manager, self.mcp_client_manager)
+
+                logger.info("MCP和LangGraph组件初始化完成")
 
             self.is_initialized = True
             logger.info("Agent核心系统初始化完成")
@@ -530,3 +545,141 @@ class AgentFactory:
         except Exception as e:
             logger.error(f"MCP工具调用失败: {e}")
             return {"success": False, "error": str(e)}
+
+    # LangGraph相关方法
+    async def chat_with_langgraph(self, message: str, use_rag: bool = True) -> Dict[str, Any]:
+        """使用LangGraph Agent进行对话"""
+        if not self.enable_mcp or not self.langgraph_agent:
+            return {
+                "success": False,
+                "error": "LangGraph功能未启用或未初始化"
+            }
+
+        logger.info(f"使用LangGraph Agent对话: {message}")
+
+        try:
+            result = await self.langgraph_agent.chat(message, use_rag)
+
+            # 记录到对话历史
+            self.conversation_history.append({
+                'role': 'user',
+                'content': message,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            self.conversation_history.append({
+                'role': 'assistant',
+                'content': result.get('response', ''),
+                'timestamp': datetime.utcnow().isoformat(),
+                'langgraph_result': result
+            })
+
+            return {
+                'success': result.get('success', False),
+                'response': result.get('response', ''),
+                'mode': 'langgraph_agent',
+                'langgraph_result': result,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"LangGraph对话失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def parse_document_with_langgraph(self, file_path: str) -> Dict[str, Any]:
+        """使用LangGraph工作流解析文档"""
+        if not self.enable_mcp or not self.langgraph_agent:
+            return {
+                "success": False,
+                "error": "LangGraph功能未启用或未初始化"
+            }
+
+        logger.info(f"使用LangGraph工作流解析文档: {file_path}")
+
+        try:
+            result = await self.langgraph_agent.parse_document(file_path)
+
+            # 记录到对话历史
+            self.conversation_history.append({
+                'role': 'system',
+                'content': f'LangGraph文档解析: {file_path}',
+                'timestamp': datetime.utcnow().isoformat(),
+                'langgraph_result': result
+            })
+
+            return result
+
+        except Exception as e:
+            logger.error(f"LangGraph文档解析失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def batch_process_documents_with_langgraph(self, file_paths: List[str]) -> Dict[str, Any]:
+        """使用LangGraph批量处理文档"""
+        if not self.enable_mcp or not self.langgraph_agent:
+            return {
+                "success": False,
+                "error": "LangGraph功能未启用或未初始化"
+            }
+
+        logger.info(f"使用LangGraph批量处理 {len(file_paths)} 个文档")
+
+        try:
+            result = await self.langgraph_agent.batch_process_documents(file_paths)
+
+            # 记录到对话历史
+            self.conversation_history.append({
+                'role': 'system',
+                'content': f'LangGraph批量处理: {len(file_paths)} 个文档',
+                'timestamp': datetime.utcnow().isoformat(),
+                'langgraph_result': result
+            })
+
+            return result
+
+        except Exception as e:
+            logger.error(f"LangGraph批量处理失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_workflow_visualization(self, workflow_type: str) -> Optional[str]:
+        """获取工作流可视化"""
+        if not self.enable_mcp or not self.langgraph_agent:
+            return None
+
+        try:
+            return self.langgraph_agent.get_workflow_visualization(workflow_type)
+        except Exception as e:
+            logger.error(f"获取工作流可视化失败: {e}")
+            return None
+
+    def get_agent_statistics(self) -> Dict[str, Any]:
+        """获取Agent统计信息"""
+        stats = {
+            "traditional_agent": {
+                "enabled": self.react_agent is not None,
+                "tools": len(self.tool_manager.tools) if self.tool_manager else 0
+            },
+            "mcp_agent": {
+                "enabled": self.mcp_agent is not None,
+                "tools": len(self.mcp_agent.available_tools) if self.mcp_agent else 0
+            },
+            "langgraph_agent": {
+                "enabled": self.langgraph_agent is not None,
+                "tools": len(self.langgraph_agent.available_tools) if self.langgraph_agent else 0,
+                "workflows": 3 if self.workflow_manager else 0
+            },
+            "conversation_history": len(self.conversation_history)
+        }
+
+        if self.langgraph_agent:
+            stats["langgraph_agent"].update(
+                self.langgraph_agent.get_statistics())
+
+        return stats
