@@ -25,6 +25,7 @@ from src.rag.rerankers import (
 from src.data.embeddings import CachedEmbeddingManager
 from src.utils.logger import get_logger
 from src.utils.helpers import Timer
+from src.utils.cache_manager import get_cache_manager, CacheLevel
 from config.settings import settings
 
 logger = get_logger("rag.core")
@@ -41,7 +42,7 @@ class RAGCore:
         enable_cache: bool = True
     ):
         self.collection_name = collection_name
-        self.embedding_model = embedding_model or settings.EMBEDDING_MODEL_PATH
+        self.embedding_model = embedding_model or settings.model.embedding_model_path
         self.reranker_types = reranker_types or ['cross_encoder', 'mmr']
         self.enable_cache = enable_cache
 
@@ -49,6 +50,7 @@ class RAGCore:
         self.vector_store_manager = VectorStoreManager()
         self.vector_store = None
         self.embedding_manager = None
+        self.cache_manager = None
 
         # 检索器
         self.vector_retriever = None
@@ -64,6 +66,14 @@ class RAGCore:
         # 文档存储（用于稀疏检索）
         self.documents = []
 
+        # 性能统计
+        self.stats = {
+            "total_searches": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "average_search_time": 0.0
+        }
+
         logger.info(
             f"RAG核心管理器初始化: 集合={collection_name}, 模型={self.embedding_model}")
 
@@ -72,15 +82,21 @@ class RAGCore:
         logger.info("正在初始化RAG核心系统...")
 
         try:
-            # 1. 初始化嵌入管理器
+            # 1. 初始化缓存管理器
+            if self.enable_cache:
+                logger.info("初始化缓存管理器...")
+                self.cache_manager = await get_cache_manager()
+
+            # 2. 初始化嵌入管理器
             logger.info("初始化嵌入管理器...")
             self.embedding_manager = CachedEmbeddingManager(
                 model_name=self.embedding_model,
-                enable_cache=self.enable_cache
+                enable_cache=self.enable_cache,
+                cache_manager=self.cache_manager
             )
             await self.embedding_manager.initialize()
 
-            # 2. 初始化向量存储
+            # 3. 初始化向量存储
             logger.info("初始化向量存储...")
             embedding_dim = self.embedding_manager.get_embedding_dimension()
             self.vector_store = await self.vector_store_manager.get_store(
@@ -88,10 +104,10 @@ class RAGCore:
                 embedding_dim=embedding_dim
             )
 
-            # 3. 初始化检索器
+            # 4. 初始化检索器
             await self._initialize_retrievers()
 
-            # 4. 初始化重排序器
+            # 5. 初始化重排序器
             await self._initialize_rerankers()
 
             logger.info("RAG核心系统初始化完成")

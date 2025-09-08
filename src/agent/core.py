@@ -1,20 +1,17 @@
 """
-Agent核心管理器
-整合LLM、工具、ReAct Agent等组件
+Agent核心管理器 - 重构为统一架构
+整合统一Agent、模型管理和缓存系统
 """
 import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
 
-from src.agent.llm import QwenLLMManager, LLMFactory
-from src.agent.tools import ToolManager, create_default_tool_manager
-from src.agent.react_agent import ReActAgent
-from src.agent.mcp_agent import MCPAgent
-from src.agent.langgraph_agent import LangGraphAgent
-from src.agent.workflows import WorkflowManager
+from src.agent.unified_agent import UnifiedAgent, AgentMode, TaskType
+from src.agent.llm import LLMManager
 from src.rag.core import RAGCore
-from src.epkbs_mcp.server_manager import MCPServerManager
 from src.epkbs_mcp.clients.mcp_client import MCPClientManager
+from src.utils.model_manager import get_model_pool, ModelType
+from src.utils.cache_manager import get_cache_manager
 from src.utils.logger import get_logger
 from config.settings import settings
 
@@ -22,7 +19,7 @@ logger = get_logger("agent.core")
 
 
 class AgentCore:
-    """Agent核心管理器"""
+    """重构的Agent核心管理器 - 统一架构"""
 
     def __init__(
         self,
@@ -30,99 +27,94 @@ class AgentCore:
         rag_core: RAGCore = None,
         max_steps: int = 10,
         max_execution_time: int = 300,
-        enable_mcp: bool = True
+        enable_mcp: bool = True,
+        agent_mode: AgentMode = AgentMode.TOOL_ENHANCED
     ):
-        self.model_name = model_name or settings.QWEN_MODEL_PATH
+        self.model_name = model_name or settings.model.qwen_model_path
         self.rag_core = rag_core
         self.enable_mcp = enable_mcp
         self.max_steps = max_steps
         self.max_execution_time = max_execution_time
+        self.agent_mode = agent_mode
 
-        # 核心组件
+        # 统一组件
+        self.unified_agent = None
         self.llm_manager = None
-        self.tool_manager = None
-        self.react_agent = None
-
-        # MCP组件
-        self.mcp_server_manager = None
         self.mcp_client_manager = None
-        self.mcp_agent = None
+        self.model_pool = None
+        self.cache_manager = None
 
-        # LangGraph组件
-        self.langgraph_agent = None
-        self.workflow_manager = None
+        # 性能统计
+        self.stats = {
+            "total_requests": 0,
+            "successful_requests": 0,
+            "failed_requests": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "model_loads": 0,
+            "average_response_time": 0.0
+        }
 
         # 状态
         self.is_initialized = False
         self.conversation_history = []
 
-        logger.info(f"Agent核心管理器初始化: 模型={self.model_name}")
+        logger.info(
+            f"统一Agent核心管理器初始化: 模型={self.model_name}, 策略={default_strategy.value}")
 
     async def initialize(self):
-        """初始化Agent系统"""
+        """初始化统一Agent系统"""
         if self.is_initialized:
             logger.info("Agent系统已初始化")
             return
 
-        logger.info("正在初始化Agent核心系统...")
+        logger.info("正在初始化统一Agent核心系统...")
 
         try:
-            # 1. 初始化LLM管理器
+            # 1. 初始化模型池
+            logger.info("初始化模型池...")
+            self.model_pool = get_model_pool()
+            await self.model_pool.start_cleanup_task()
+
+            # 2. 初始化缓存管理器
+            logger.info("初始化缓存管理器...")
+            self.cache_manager = await get_cache_manager()
+
+            # 3. 初始化LLM管理器
             logger.info("初始化LLM管理器...")
-            self.llm_manager = QwenLLMManager(
-                model_name=self.model_name,
-                load_in_8bit=False,  # 可根据需要调整
-                load_in_4bit=False
+            self.llm_manager = LLMManager(
+                model_pool=self.model_pool,
+                cache_manager=self.cache_manager
             )
             await self.llm_manager.initialize()
 
-            # 2. 初始化工具管理器
-            logger.info("初始化工具管理器...")
-            self.tool_manager = create_default_tool_manager(self.rag_core)
-
-            # 3. 初始化ReAct Agent
-            logger.info("初始化ReAct Agent...")
-            self.react_agent = ReActAgent(
-                llm_manager=self.llm_manager,
-                tool_manager=self.tool_manager,
-                max_steps=self.max_steps,
-                max_execution_time=self.max_execution_time
-            )
-
-            # 4. 初始化MCP组件（如果启用）
+            # 4. 初始化MCP客户端管理器（如果启用）
             if self.enable_mcp:
-                logger.info("初始化MCP组件...")
-
-                # 初始化MCP服务器管理器
-                self.mcp_server_manager = MCPServerManager()
-                await self.mcp_server_manager.start_all_servers(self.rag_core)
-
-                # 初始化MCP客户端管理器
-                self.mcp_client_manager = MCPClientManager(
-                    self.mcp_server_manager)
+                logger.info("初始化MCP客户端管理器...")
+                self.mcp_client_manager = MCPClientManager()
                 await self.mcp_client_manager.initialize()
 
-                # 初始化MCP Agent
-                self.mcp_agent = MCPAgent(
-                    self.llm_manager, self.mcp_client_manager)
-                await self.mcp_agent.initialize()
+            # 5. 初始化RAG核心（如果未提供）
+            if not self.rag_core:
+                logger.info("初始化RAG核心...")
+                self.rag_core = RAGCore()
+                await self.rag_core.initialize()
 
-                # 初始化LangGraph Agent
-                self.langgraph_agent = LangGraphAgent(
-                    self.llm_manager, self.mcp_client_manager)
-                await self.langgraph_agent.initialize()
-
-                # 初始化工作流管理器
-                self.workflow_manager = WorkflowManager(
-                    self.llm_manager, self.mcp_client_manager)
-
-                logger.info("MCP和LangGraph组件初始化完成")
+            # 6. 初始化统一Agent
+            logger.info("初始化统一Agent...")
+            self.unified_agent = UnifiedAgent(
+                llm_manager=self.llm_manager,
+                mcp_client_manager=self.mcp_client_manager,
+                rag_core=self.rag_core,
+                mode=self.agent_mode
+            )
+            await self.unified_agent.initialize()
 
             self.is_initialized = True
-            logger.info("Agent核心系统初始化完成")
+            logger.info("统一Agent核心系统初始化完成")
 
         except Exception as e:
-            logger.error(f"Agent核心系统初始化失败: {e}")
+            logger.error(f"统一Agent核心系统初始化失败: {e}")
             raise
 
     async def chat(
@@ -130,15 +122,17 @@ class AgentCore:
         message: str,
         use_rag: bool = True,
         stream: bool = False,
+        task_type: TaskType = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        与Agent对话
+        与统一Agent对话
 
         Args:
             message: 用户消息
             use_rag: 是否使用RAG
             stream: 是否流式响应
+            task_type: 任务类型
             **kwargs: 其他参数
 
         Returns:
@@ -147,24 +141,240 @@ class AgentCore:
         if not self.is_initialized:
             await self.initialize()
 
-        logger.info(f"Agent对话开始: {message[:100]}...")
+        start_time = datetime.utcnow()
+        self.stats["total_requests"] += 1
+
+        logger.info(f"统一Agent对话开始: {message[:100]}...")
 
         try:
-            if stream:
-                # 流式响应
-                return await self._stream_chat(message, use_rag, **kwargs)
+            # 准备上下文
+            context = {
+                "use_rag": use_rag,
+                "stream": stream,
+                # 最近10轮对话
+                "conversation_history": self.conversation_history[-10:],
+                **kwargs
+            }
+
+            # 使用简化的统一Agent执行任务
+            result = await self.unified_agent.execute_task(
+                task=message,
+                context=context
+            )
+
+            # 更新对话历史
+            self.conversation_history.append({
+                'role': 'user',
+                'content': message,
+                'timestamp': start_time.isoformat()
+            })
+
+            if result.get("success", True):
+                self.conversation_history.append({
+                    'role': 'assistant',
+                    'content': result.get("response", result.get("result", "")),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'task_type': result.get("task_type", "unknown")
+                })
+                self.stats["successful_requests"] += 1
             else:
-                # 普通响应
-                return await self._normal_chat(message, use_rag, **kwargs)
+                self.stats["failed_requests"] += 1
+
+            # 更新响应时间统计
+            response_time = (datetime.utcnow() - start_time).total_seconds()
+            self._update_response_time_stats(response_time)
+
+            return result
 
         except Exception as e:
-            logger.error(f"Agent对话失败: {e}")
+            logger.error(f"统一Agent对话失败: {e}")
+            self.stats["failed_requests"] += 1
             return {
                 'success': False,
                 'response': f"对话过程中发生错误: {str(e)}",
                 'error': str(e),
                 'timestamp': datetime.utcnow().isoformat()
             }
+
+    async def parse_document(
+        self,
+        file_path: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """解析文档"""
+        if not self.is_initialized:
+            await self.initialize()
+
+        logger.info(f"开始解析文档: {file_path}")
+
+        try:
+            context = {
+                "file_path": file_path,
+                **kwargs
+            }
+
+            result = await self.unified_agent.execute_task(
+                task=f"解析文档: {file_path}",
+                context=context
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"文档解析失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+
+    async def batch_process_documents(
+        self,
+        file_paths: List[str],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """批量处理文档"""
+        if not self.is_initialized:
+            await self.initialize()
+
+        logger.info(f"开始批量处理 {len(file_paths)} 个文档")
+
+        try:
+            context = {
+                "file_paths": file_paths,
+                **kwargs
+            }
+
+            result = await self.unified_agent.execute_task(
+                task=f"批量处理 {len(file_paths)} 个文档",
+                context=context
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"批量文档处理失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+
+    def _update_response_time_stats(self, response_time: float):
+        """更新响应时间统计"""
+        current_avg = self.stats["average_response_time"]
+        total_requests = self.stats["total_requests"]
+
+        # 计算新的平均响应时间
+        if total_requests > 1:
+            self.stats["average_response_time"] = (
+                (current_avg * (total_requests - 1) + response_time) / total_requests
+            )
+        else:
+            self.stats["average_response_time"] = response_time
+
+    async def get_capabilities(self) -> List[str]:
+        """获取Agent能力列表"""
+        if self.unified_agent:
+            return await self.unified_agent.get_capabilities()
+        return []
+
+    async def get_modes(self) -> List[str]:
+        """获取可用模式列表"""
+        return [mode.value for mode in AgentMode]
+
+    async def get_stats(self) -> Dict[str, Any]:
+        """获取性能统计"""
+        stats = self.stats.copy()
+        stats["timestamp"] = datetime.utcnow().isoformat()
+
+        # 添加模型池统计
+        if self.model_pool:
+            stats["model_pool"] = await self.model_pool.get_model_info()
+
+        # 添加缓存统计
+        if self.cache_manager:
+            stats["cache"] = await self.cache_manager.get_stats()
+
+        # 添加Agent健康状态
+        if self.unified_agent:
+            stats["agent_health"] = await self.unified_agent.health_check()
+
+        return stats
+
+    async def health_check(self) -> Dict[str, Any]:
+        """健康检查"""
+        health_status = {
+            "agent_core": "healthy" if self.is_initialized else "not_initialized",
+            "timestamp": datetime.utcnow().isoformat(),
+            "components": {}
+        }
+
+        try:
+            # 检查统一Agent
+            if self.unified_agent:
+                agent_health = await self.unified_agent.health_check()
+                health_status["components"]["unified_agent"] = agent_health
+
+            # 检查模型池
+            if self.model_pool:
+                model_info = await self.model_pool.get_model_info()
+                health_status["components"]["model_pool"] = {
+                    "status": "healthy",
+                    "loaded_models": len([info for info in model_info.values() if info["is_loaded"]])
+                }
+
+            # 检查缓存管理器
+            if self.cache_manager:
+                cache_stats = await self.cache_manager.get_stats()
+                health_status["components"]["cache_manager"] = {
+                    "status": "healthy",
+                    "stats": cache_stats
+                }
+
+        except Exception as e:
+            health_status["agent_core"] = "unhealthy"
+            health_status["error"] = str(e)
+
+        return health_status
+
+    async def cleanup(self):
+        """清理资源"""
+        logger.info("开始清理Agent核心资源...")
+
+        try:
+            # 清理模型池
+            if self.model_pool:
+                await self.model_pool.cleanup()
+
+            # 清理缓存管理器
+            if self.cache_manager:
+                await self.cache_manager.close()
+
+            # 清理MCP客户端
+            if self.mcp_client_manager:
+                await self.mcp_client_manager.close()
+
+            self.is_initialized = False
+            logger.info("Agent核心资源清理完成")
+
+        except Exception as e:
+            logger.error(f"Agent核心资源清理失败: {e}")
+
+
+# 全局Agent核心实例
+_agent_core_instance = None
+
+
+async def get_agent_core() -> AgentCore:
+    """获取全局Agent核心实例"""
+    global _agent_core_instance
+
+    if _agent_core_instance is None:
+        _agent_core_instance = AgentCore()
+        await _agent_core_instance.initialize()
+
+    return _agent_core_instance
 
     async def _normal_chat(
         self,

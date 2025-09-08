@@ -20,10 +20,10 @@
   - 简单问答功能
   - 结果展示
 
-- **[agent_chat.py](basic/agent_chat.py)** - Agent 对话示例
-  - 基础对话功能
-  - 工具调用演示
-  - 对话历史管理
+- **[agent_chat.py](basic/agent_chat.py)** - 统一 Agent 对话示例
+  - 智能任务分析
+  - 自动工具选择
+  - 统一执行接口
 
 ### 🚀 高级示例 (`advanced/`)
 
@@ -51,8 +51,8 @@
 
 - **[custom_tools.py](advanced/custom_tools.py)** - 自定义工具开发
   - MCP 工具扩展
-  - 自定义 Agent 开发
-  - 工具集成示例
+  - 统一 Agent 集成
+  - 工具调用示例
 
 ### 📓 Jupyter 示例 (`notebooks/`)
 
@@ -87,7 +87,7 @@ python examples/basic/document_parsing_demo.py
 # RAG问答示例
 python examples/basic/simple_rag.py
 
-# Agent对话示例
+# 统一Agent对话示例
 python examples/basic/agent_chat.py
 ```
 
@@ -140,7 +140,7 @@ VECTOR_STORE_PATH = "your/vector/store"
 
 1. **document_parsing_demo.py** - 了解文档处理
 2. **simple_rag.py** - 掌握 RAG 基础
-3. **agent_chat.py** - 体验 Agent 功能
+3. **agent_chat.py** - 体验统一 Agent 功能
 
 ### 进阶用户
 

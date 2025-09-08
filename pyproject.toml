@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epkbs"
-version = "1.0.0"
-description = "企业私有知识库系统 - RAG + Agent + MCP架构"
+version = "2.0.0"
+description = "企业私有知识库系统 - 统一Agent架构 + 性能优化"
 authors = [
     {name = "EPKBS Team", email = "team@epkbs.com"}
 ]
@@ -20,6 +20,101 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+]
+
+# 核心依赖
+dependencies = [
+    # LangGraph和LangChain核心
+    "langgraph>=0.0.40",
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.20",
+
+    # MCP框架
+    "fastmcp>=0.1.0",
+    "mcp>=1.0.0",
+
+    # 模型和推理
+    "transformers>=4.36.0",
+    "torch>=2.1.0",
+    "sentence-transformers>=2.2.2",
+
+    # 数据库
+    "pymilvus>=2.3.0",
+    "psycopg2-binary>=2.9.7",
+    "sqlalchemy>=2.0.0",
+    "redis>=5.0.0",
+
+    # Web框架
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "streamlit>=1.28.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
+
+    # 文档处理（核心）
+    "unstructured[pdf]>=0.11.0",
+    "pypdf>=3.17.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.2",
+    "Pillow>=10.0.0",
+
+    # 数据处理
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+
+    # 检索和重排序
+    "rank-bm25>=0.2.2",
+    "faiss-cpu>=1.7.4",
+
+    # HTTP客户端（统一使用httpx）
+    "httpx>=0.25.0",
+
+    # 配置和工具
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "loguru>=0.7.2",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+
+    # 安全
+    "cryptography>=41.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+]
+
+# 可选依赖组
+[project.optional-dependencies]
+# 高级文档处理
+advanced-parsing = [
+    "paddleocr>=2.7.0",
+    "paddlepaddle>=2.5.0",
+    "camelot-py[cv]>=0.10.1",
+    "pdfplumber>=0.9.0",
+    "opencv-python>=4.8.0",
+]
+
+# 图神经网络（如果需要）
+graph = [
+    "torch-geometric>=2.4.0",
+    "networkx>=3.2.1",
+    "neo4j>=5.14.0",
+]
+
+# 开发工具
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.10.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+]
+
+# 部署工具
+deploy = [
+    "gunicorn>=21.2.0",
+    "prometheus-client>=0.19.0",
 ]
 
 [project.urls]
