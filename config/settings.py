@@ -44,9 +44,9 @@ class ModelConfig(BaseModel):
     qwen_model_path: str = Field(
         default="Qwen/Qwen3-8B", env="QWEN_MODEL_PATH")
     embedding_model_path: str = Field(
-        default="Qwen/Qwen3-Embedding-8B", env="EMBEDDING_MODEL_PATH")
+        default="Qwen/Qwen3-Embedding-4B", env="EMBEDDING_MODEL_PATH")
     reranker_model_path: str = Field(
-        default="Qwen/Qwen3-Reranker-8B", env="RERANKER_MODEL_PATH")
+        default="Qwen/Qwen3-Reranker-0.6B", env="RERANKER_MODEL_PATH")
     multimodal_model_path: str = Field(
         default="Qwen/Qwen3-8B", env="MULTIMODAL_MODEL_PATH")
 
@@ -160,20 +160,38 @@ class MCPConfig(BaseModel):
 
 
 class CacheConfig(BaseModel):
-    """缓存配置"""
+    """缓存配置 - 优化多层缓存策略"""
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
     cache_ttl: int = Field(default=3600, env="CACHE_TTL")
 
-    # 分层缓存配置
+    # 分层缓存配置 - 增强配置
     enable_memory_cache: bool = Field(default=True, env="ENABLE_MEMORY_CACHE")
     enable_redis_cache: bool = Field(default=True, env="ENABLE_REDIS_CACHE")
-    memory_cache_size: int = Field(default=1000, env="MEMORY_CACHE_SIZE")
+    memory_cache_size: int = Field(
+        default=2000, env="MEMORY_CACHE_SIZE")  # 提升容量 1000->2000
 
-    # 特定缓存配置
+    # L1缓存 (内存缓存) 配置
+    l1_cache_size: int = Field(default=2000, env="L1_CACHE_SIZE")
+    l1_cache_ttl: int = Field(default=1800, env="L1_CACHE_TTL")  # 30分钟
+
+    # L2缓存 (Redis缓存) 配置
+    l2_cache_ttl: int = Field(default=7200, env="L2_CACHE_TTL")  # 2小时
+    l2_cache_max_memory: str = Field(
+        default="512mb", env="L2_CACHE_MAX_MEMORY")
+
+    # 特定缓存配置 - 优化TTL
     embedding_cache_ttl: int = Field(
-        default=7200, env="EMBEDDING_CACHE_TTL")  # 2小时
+        default=14400, env="EMBEDDING_CACHE_TTL")  # 4小时 (2->4小时)
     model_cache_ttl: int = Field(default=86400, env="MODEL_CACHE_TTL")  # 24小时
-    rag_cache_ttl: int = Field(default=1800, env="RAG_CACHE_TTL")  # 30分钟
+    rag_cache_ttl: int = Field(
+        default=3600, env="RAG_CACHE_TTL")  # 1小时 (30分钟->1小时)
+
+    # 查询结果缓存
+    query_cache_ttl: int = Field(default=1800, env="QUERY_CACHE_TTL")  # 30分钟
+
+    # 缓存预热配置
+    enable_cache_warmup: bool = Field(default=True, env="ENABLE_CACHE_WARMUP")
+    warmup_batch_size: int = Field(default=50, env="WARMUP_BATCH_SIZE")
 
 
 class Settings(BaseSettings):
